@@ -47,7 +47,7 @@
 | `data/I1.js` … `data/I4.js` | 면접 예상 질문 — `KAI.iv.push({...})` |
 | `data/I5.js` · `data/I6.js` | 🔁 복원 질문(인성 / PT·실무) — 선배 응시 후기 기반 |
 | `data/fig1.js` · `fig2.js` · `fig3.js` | 직접 그린 SVG 개념도(L1~L3 · L4~L6 · L7~L9) — `KAI.media['단원-절'].fig` |
-| `data/media.js` · `img/` | 사진 20장·영상 링크 11개 — `KAI.media['단원-절'].photos / .videos` (같은 키에 합쳐 넣음) |
+| `data/media.js` · `img/` | 사진 31장·영상 링크 11개 — `KAI.media['단원-절'].photos / .videos` (같은 키에 합쳐 넣음) |
 | `rubric.json` | 결과수집이 수준·세특 문장을 만들 때 쓰는 루브릭 |
 
 ## 고칠 곳

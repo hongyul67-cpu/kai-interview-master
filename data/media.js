@@ -49,4 +49,17 @@ add('L10-2', { photos: [P('kt1.jpg', 'KT-1 웅비 — KAI 기본훈련기(전쟁
                         P('kf21.jpg', 'KF-21 보라매', '대한민국 국방부', '공공누리 제1유형(출처표시)', 'KF-21_Boramae_First_Production.jpg')] });
 add('L10-3', { photos: [P('surion.jpg', '수리온 시제기', '한국항공우주산업(KAI)', 'CC BY 2.0', 'KUH-1_Surion_Prototype_in_KAI.jpg')] });
 add('L10-5', { photos: [P('wire-harness.jpg', '캐노피에 배선 뭉치(와이어 하네스)를 다는 정비사 — 전자·전기과가 이어지는 일', 'MC3 Bradley Evans, 미 해군', PD, 'US_Navy_100622-N-6604E-025_Aviation_Structural_Mechanic_(Equipment)_2nd_Class_Stephen_Bessette_installs_a_wire_harness_on_a_replacement_canopy_for_an_F-A-18E_Super_Hornet.jpg')] });
+
+/* ── 사진 2차 (2026-09-30 사용자 승인 11장 — 사진이 없던 L1·L7·L8 과 오토클레이브·조립 라인 보강) ── */
+add('L1-5', { photos: [P('semi-monocoque-inside.jpg', '실제 동체 뒷부분 속 — 둥근 프레임과 길게 달리는 스트링거에 알루미늄 외피가 붙어 있다', 'YSSYguy', 'CC BY-SA 4.0', 'Semi_monocoque_fuselage_structure.JPG')] });
+add('L1-6', { photos: [P('wing-restoration.jpg', '복원 중인 옛 훈련기의 날개 중앙부 — 외피 안쪽 뼈대(스파·리브)와 금속 이음쇠가 보인다(목재 날개)', 'J. S. Bond', 'CC BY-SA 4.0', 'Fairchild_Cornell_Wing_Restoration.JPG')] });
+add('L5-6', { photos: [P('autoclave-transport.jpg', '연구용 오토클레이브를 옮기는 모습 — 고속도로를 막아야 할 만큼 크다(독일항공우주센터)', 'DLR', 'CC BY 3.0', 'DLR_autoclave_transport_on_A26_high-way.JPG')] });
+add('L7-7', { photos: [P('vernier-caliper.jpg', '버니어 캘리퍼스 눈금 — 이 사진의 읽음값은 3.58mm', 'ArtMechanic', 'CC BY-SA 3.0', 'Messschieber.jpg'),
+                       P('micrometers.jpg', '마이크로미터 세 가지 — 외측·내측·깊이', 'Splarka', PD, 'Micrometers.jpg')] });
+add('L8-1', { photos: [P('rockwell-tester.jpg', '로크웰 경도 시험기 — 누르개가 파고든 깊이로 단단함을 잰다', 'Three-quarter-ten', 'CC BY-SA 3.0', 'Rockwell_hardness_tester_001.jpg')] });
+add('L8-2', { photos: [P('aluminium-ingots.jpg', '공장에 쌓인 알루미늄 덩어리(잉곳) — 녹여 합금을 만들고 판재로 민다(1926년 채색 사진)', 'Anders Beer Wilse', 'CC BY 4.0', 'Aluminum_ingots_at_Norwegian_Aluminium_Company.jpg')] });
+add('L8-7', { photos: [P('titanium-products.jpg', '티타늄 제품 — 판·관·봉·분말', 'Mark Fergus', 'CC BY 3.0', 'Titanium_products.jpg')] });
+add('L8-8', { photos: [P('heat-treat-furnace.jpg', '컴퓨터로 온도를 다루는 열처리로 — 질화·침탄 같은 표면경화용', 'S zillayali', 'CC BY 3.0', 'Computerised_Heat_Treatment_Furnance.jpg')] });
+add('L9-1', { photos: [P('fuselage-jigs-martin.jpg', '조립 치구에서 막 꺼낸 동체들(1940년대 미국 항공기 공장) — 치구 덕분에 모양이 똑같다', 'Charles Fenno Jacobs, 미 국립문서보관소', PD, 'Construction_of_aircraft_at_the_Glenn_L._Martin_plant_at_Baltimore,_MD._Fuselages,_just_out_of_the_assembly_jigs_are..._-_NARA_-_520743.jpg')] });
+add('L10-5', { photos: [P('a321-final-assembly.jpg', '여객기 최종 조립 라인(에어버스 함부르크) — 동체·날개를 합쳐 한 대를 완성하는 곳', 'DearEdward', 'CC BY 2.0', 'A321_final_assembly_(9351765668).jpg')] });
 })();
