@@ -195,6 +195,16 @@ details.q .in{padding:12px 16px 14px}
 .rtable{width:100%;border-collapse:collapse;font-size:14px}
 .rtable td{border-top:1px solid var(--line);padding:8px 6px;vertical-align:top}
 .rtable td:last-child{text-align:right;white-space:nowrap}
+/* 🎙 답변 녹음 */
+.recbar{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin-top:10px}
+#rcTog.on{background:#fdeeee;border-color:#f3b3b5;color:#a1232b;font-weight:800}
+.recdot{display:inline-block;width:10px;height:10px;border-radius:50%;background:var(--no);vertical-align:-1px;
+        animation:recblink 1s ease-in-out infinite}
+@keyframes recblink{50%{opacity:.25}}
+@media (prefers-reduced-motion:reduce){.recdot{animation:none}}
+.recrow{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:8px 0 4px}
+.recrow audio{width:100%;max-width:380px;height:40px}
+.recplay{border-color:#9dbbe8;background:#f6f9ff}
 
 /* ── ⭐ 중요 표시 (필수 단원·핵심 용어·필수 질문) · 🔁 복원 질문 ── */
 .pill.core{background:#fff1c2;color:#8a5a00;font-weight:800}
@@ -261,7 +271,42 @@ details.q.imp{border-left:4px solid #f0b400}
   .units{grid-template-columns:1fr}
   .terms{grid-template-columns:1fr}
 }
+/* ── 🖨 면접 전날 A4 요약 (#sum) ── */
+.sum{background:#fff;border:1px solid var(--line);border-radius:var(--r);padding:18px 20px;font-size:13.5px;line-height:1.5}
+.sum h1{font-size:19px;margin:0;color:var(--navy)}
+.sum .ssub{color:var(--dim);font-size:12px;margin:2px 0 10px}
+.sum h2{font-size:14.5px;margin:12px 0 6px;padding:3px 8px;background:var(--navy);color:#fff;border-radius:6px}
+.sum .kai{display:grid;grid-template-columns:1fr 1fr;gap:2px 16px;margin:0;padding-left:18px}
+.sum .flow{background:var(--sky);border-radius:8px;padding:6px 10px}
+.sum .cols{columns:2;column-gap:18px}
+.sum .sq{margin:0;padding-left:22px}
+.sum .sq li{break-inside:avoid;margin-bottom:5px}
+.sum .sq .k{display:block;color:#1a4f9e;font-size:12.5px}
+.sum .su{break-inside:avoid;margin-bottom:6px}
+.sum .su b.u{display:block;color:var(--navy);font-size:13px;border-bottom:1px solid var(--line);margin-bottom:2px}
+.sum .su div{font-size:12.5px}
+.sum .su div b{color:#6b4600}
+.sumbar{display:flex;gap:10px;align-items:center;flex-wrap:wrap;margin-bottom:12px}
+@media (max-width:640px){ .sum{padding:14px} .sum .kai{grid-template-columns:1fr} .sum .cols{columns:1} }
+
 @media print{
+  @page{size:A4;margin:9mm 10mm 10mm}
   .tabbar,.foot,.flag,.btn{display:none!important}
   details.q{break-inside:avoid}
+  /* 요약 화면 인쇄: 머리·떠 있는 공용 단추를 빼고 종이 한 면을 꽉 쓴다 */
+  body.v-sum{background:#fff}
+  body.v-sum .top,body.v-sum .sumbar,
+  body.v-sum #bb-btn,body.v-sum .tr-btn,body.v-sum #rb-btn,body.v-sum #fxSnd,body.v-sum .cm-launch,body.v-sum #rk-badge{display:none!important}
+  body.v-sum main,body.v-sum .wrap{padding:0!important;max-width:none!important;min-width:0!important;margin:0!important}
+  body.v-sum .sum{border:0;padding:0;font-size:8pt;line-height:1.32;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+  body.v-sum .sum h1{font-size:13pt}
+  body.v-sum .sum h2{font-size:9.6pt;margin:7px 0 4px;padding:2px 6px}
+  body.v-sum .sum .kai{grid-template-columns:1fr 1fr}
+  body.v-sum .sum .cols{columns:2}
+  body.v-sum .sum .sq .k,body.v-sum .sum .su div{font-size:7.6pt}
+  body.v-sum .sum .sq li{margin-bottom:3px}
+  body.v-sum .sum .su{margin-bottom:4px}
+  body.v-sum .sum .su b.u{font-size:8.2pt}
+  body.v-sum .sum h2{break-after:avoid}
+  body.v-sum .sum h2.pb{break-before:page;margin-top:0}
 }

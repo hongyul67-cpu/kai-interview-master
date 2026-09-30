@@ -105,9 +105,11 @@ let curView = 'home';
 function go(h) { if (location.hash === '#' + h) route(); else location.hash = h; }
 function route() {
   stopTimer();
+  recRelease();                  // 화면을 옮기면 마이크를 닫고 녹음을 지운다
   const [view, arg] = decodeURIComponent(location.hash.slice(1) || 'home').split('/');
-  curView = ['home', 'learn', 'field', 'quiz', 'iv', 'pt'].includes(view) ? view : 'home';
+  curView = ['home', 'learn', 'field', 'quiz', 'iv', 'pt', 'sum'].includes(view) ? view : 'home';
   $$('.tab').forEach(t => t.classList.toggle('on', t.dataset.view === curView));
+  document.body.classList.toggle('v-sum', curView === 'sum');
   const v = $('#view');
   v.innerHTML = '';
   try {
@@ -117,6 +119,7 @@ function route() {
     if (curView === 'quiz')  renderQuiz(v, arg);
     if (curView === 'iv')    renderIv(v, arg || 'all');
     if (curView === 'pt')    renderPt(v);
+    if (curView === 'sum')   renderSum(v);
   } catch (e) {
     console.error(e);
     v.appendChild(el(`<div class="card explain warn">화면을 그리다 문제가 생겼습니다: ${esc(e.message)}</div>`));
@@ -168,6 +171,7 @@ function renderHome(v) {
       <button class="btn btn-primary" id="hmMock" ${Q.length ? '' : 'disabled'}>🎲 무작위 ${MOCK_N}문항 시작</button>
       ${coreQ.length ? `<button class="btn btn-core" id="hmCore">⭐ 중요 질문 ${coreQ.length}개 연습</button>` : ''}
       ${flagN ? `<button class="btn" id="hmFlag">📌 다시 볼 질문 ${flagN}개 연습</button>` : ''}
+      <button class="btn" id="hmSum">🖨 면접 전날 A4 요약</button>
     </div>
     ${Q.length ? '' : '<div class="muted" style="margin-top:6px">면접 질문을 준비하고 있습니다.</div>'}
   </div>`);
@@ -198,6 +202,7 @@ function renderHome(v) {
   const m = $('#hmMock'); if (m) m.onclick = () => startMock();
   const c = $('#hmCore'); if (c) c.onclick = () => startRun(allQs().filter(q => isImp(q.item)), '⭐ 중요 질문(필수 + 복원 질문)');
   const f = $('#hmFlag'); if (f) f.onclick = () => startRun(allQs().filter(q => ST.flag[q.qid]), '📌 다시 볼 질문');
+  $('#hmSum').onclick = () => go('sum');
 }
 
 /* ══════════════ 배우기 — 단원 목록 ══════════════ */
@@ -410,14 +415,18 @@ function renderIv(v, pick) {
     <h2>🎤 면접 연습</h2>
     <div class="muted">질문을 눌러 펼치면 <b>면접관이 확인하려는 것 · STAR 구조 · 키워드 · 모범 답변 · 꼬리 질문</b>이 나옵니다.
       <b>🎤 말하기 연습</b>은 질문만 보여 주고 ${SPEAK_SEC}초를 잽니다 — 실제로 소리 내어 답한 뒤 스스로 평가하세요.</div>
+    <div class="muted" style="margin-top:6px">🎙 <b>녹음</b>이 켜져 있으면(처음 한 번 마이크 허용) 내 답변을 바로 <b>다시 들어 볼 수 있습니다</b>.
+      녹음은 이 기기 화면에만 있고 어디에도 보내거나 저장하지 않으며, 연습을 끝내면 지워집니다. 연습 화면에서 끌 수 있습니다.</div>
     <div class="explain" style="margin-top:8px"><span class="pill core">⭐ 필수</span> 누구나 받는 기본 질문 ·
       <span class="pill heard">🔁 복원 질문 · 중요</span> 실제 기출은 아니지만 선배들의 응시 후기로 되살린 질문 — 둘 다 <b>묶음마다 앞에</b> 두었습니다.</div>
     <div class="row" style="margin-top:10px">
       <button class="btn btn-core" id="ivCore" ${imp.length ? '' : 'disabled'}>⭐ 중요 질문 ${imp.length}개 말하기 연습</button>
       <button class="btn btn-primary" id="ivMock" ${Q.length ? '' : 'disabled'}>🎲 무작위 모의면접 ${MOCK_N}문항</button>
       <button class="btn" id="ivFlag" ${flagged.length ? '' : 'disabled'}>📌 다시 볼 질문 ${flagged.length}개 연습</button>
+      <button class="btn" id="ivSum">🖨 면접 전날 A4 요약</button>
     </div>
   </div>`));
+  $('#ivSum').onclick = () => go('sum');
   $('#ivMock').onclick = () => startMock();
   $('#ivCore').onclick = () => startRun(allQs().filter(q => isImp(q.item)), '⭐ 중요 질문(필수 + 복원 질문)');
   $('#ivFlag').onclick = () => startRun(allQs().filter(q => ST.flag[q.qid]), '📌 다시 볼 질문');
@@ -461,6 +470,48 @@ function renderIv(v, pick) {
     }
     v.appendChild(box);
   });
+}
+
+/* ══════════════ 🖨 면접 전날 A4 요약 (#sum) ══════════════
+   ⭐ 중요 질문(필수+복원)과 답에 넣을 키워드, 단원별 ⭐ 핵심 용어를 A4 두 장 안팎에 모은다.
+   질문·용어는 데이터에서 그대로 뽑고, 「KAI 한눈에」만 L10(2026-09-30 공식 홈페이지 확인)에서 옮겨 적었다 — L10 을 고치면 여기도. */
+const SUM_KAI = [
+  '<b>대한민국 대표 항공우주 체계종합업체</b> — 설계·개발부터 생산·군수지원까지 전체를 책임',
+  '<b>1999.10.1 설립</b> · 본사 <b>경남 사천</b> · 사업: 항공·우주·애프터마켓(정비·성능개량)',
+  '제품: <b>KT-1</b>(기본훈련기) · <b>T-50</b>(최초 국산 초음속) · <b>KF-21 보라매</b> · <b>수리온</b>(최초 국산 헬기) · 미르온(LAH)',
+  '우주: 위성, <b>누리호 총조립</b> · 기체 구조물: 보잉·에어버스 날개·동체(A350 날개 리브 설계승인권)',
+  '생산: 복합재 가공 → 구조물 제작 → 최종 조립 → 도장 · 품질 <b>AS9100</b> 인증',
+  '사명: 사람과 기술을 연결하여 하늘과 우주를 향한 인류의 가치를 실현 · 비전: <b>글로벌 항공우주 Big 4</b>',
+  '핵심가치: 고객에 대한 <b>신뢰와 존중</b> · 기술에 대한 <b>도전과 혁신</b> · 협업을 위한 <b>소통과 화합</b>',
+  '인재상: <b>창조 · 도전 · 협동</b> — 자기소개·지원동기에서 내 경험과 연결해 말하기',
+];
+function renderSum(v) {
+  const imp = allQs().filter(q => isImp(q.item));
+  const units = learnList().filter(u => !u.soon && (u.terms || []).some(t => t.core));
+  const nTerm = units.reduce((s, u) => s + u.terms.filter(t => t.core).length, 0);
+  const d = new Date(), today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+  v.appendChild(el(`<div class="sumbar">
+    <button class="btn btn-primary" id="smPrint">🖨 인쇄 · PDF로 저장</button>
+    <button class="btn" id="smBack">← 면접 연습으로</button>
+    <span class="muted">A4 두 장 안팎입니다. 인쇄 창에서 대상(프린터)을 「PDF로 저장」으로 고르면 파일로 남습니다.</span>
+  </div>`));
+  v.appendChild(el(`<div class="sum">
+    <h1>✈️ KAI 면접 전날 요약 — 생산기술·기체 조립</h1>
+    <div class="ssub">KAI 면접 마스터 · 뽑은 날 ${today} · 참고 자료입니다 — 회사 정보는 면접 직전에 공식 홈페이지에서 다시 확인하세요.</div>
+    <h2>🏢 KAI 한눈에 (2026-09-30 공식 홈페이지 확인)</h2>
+    <ul class="kai">${SUM_KAI.map(s => `<li>${s}</li>`).join('')}</ul>
+    <h2>🗣 답변 틀 — 60초</h2>
+    <div class="flow"><b>결론 먼저</b> → <b>이유·경험</b>(상황→과제→행동→결과) → <b>입사 후 어떻게</b> ·
+      모범 답변의 [ ] 칸은 <b>내 경험</b>(현장실습·동아리·자격증·작품)으로 · 모르는 건 "정확히는 모르지만 ○○로 알고 있고, 입사 후 바로 확인하겠습니다"</div>
+    <h2>⭐ 중요 질문 ${imp.length}개 — 답에 꼭 넣을 키워드 (🔁 = 선배 후기로 되살린 복원 질문, 기출 아님)</h2>
+    <div class="cols"><ol class="sq">${imp.map(q => `<li>${q.item.heard ? '🔁 ' : ''}${txt(q.item.q)}
+      ${(q.item.keys || []).length ? `<span class="k">▸ ${q.item.keys.map(txt).join(' · ')}</span>` : ''}</li>`).join('')}</ol></div>
+    <h2 class="pb">⭐ 핵심 용어 ${nTerm}개 — 뜻을 입으로 설명할 수 있게</h2>
+    <div class="cols">${units.map(u => `<div class="su"><b class="u">${esc(u.emoji || '')} ${esc(u.id)} ${txt(u.title.split(' — ')[0])}</b>
+      ${u.terms.filter(t => t.core).map(t => `<div><b>${txt(t.t)}</b> — ${txt(t.d)}</div>`).join('')}</div>`).join('')}</div>
+  </div>`));
+  $('#smPrint').onclick = () => window.print();
+  $('#smBack').onclick = () => go('iv');
 }
 
 /* 질문 하나 — 아코디언 */
@@ -529,6 +580,66 @@ function answerHtml(it) {
    질문만 → 60초 타이머 → 모범 답변 공개 → 말한 키워드 체크 → 상/중/하 → 다음 */
 let run = null, tick = null;
 
+/* 🎙 답변 녹음 — 마이크 소리는 이 기기의 화면 메모리에만 두고 어디에도 보내거나 저장하지 않는다.
+   켜 두면(기본) 질문이 나올 때 녹음을 시작해 「답변 마침」·시간 종료에 멈추고, 평가 화면에서 다시 듣는다.
+   연습이 끝나면 결과 화면에서 문항별로 다시 들을 수 있고, 다른 화면으로 가거나 새 연습을 시작하면 지운다.
+   마이크는 연습하는 동안만 열어 두고(질문마다 허용을 다시 묻지 않게) 연습이 끝나면 닫는다. */
+const REC = { stream: null, rec: null, chunks: [], urls: [], err: '' };
+const recOK = () => !!(navigator.mediaDevices && navigator.mediaDevices.getUserMedia && window.MediaRecorder);
+const recOn = () => ST.recOn !== false && recOK();
+function recStart() {
+  if (!recOn()) return Promise.resolve(false);
+  if (REC.rec) return Promise.resolve(true);
+  const get = REC.stream ? Promise.resolve(REC.stream)
+    : navigator.mediaDevices.getUserMedia({ audio: true }).then(s => (REC.stream = s));
+  return get.then(s => {
+    /* 허용 창을 기다리는 사이 연습을 그만뒀거나 녹음을 껐으면 마이크를 바로 닫는다 */
+    if (!run || !recOn()) { recCloseMic(); return false; }
+    if (REC.rec) return true;
+    REC.chunks = []; REC.err = '';
+    REC.rec = new MediaRecorder(s);
+    REC.rec.ondataavailable = e => { if (e.data && e.data.size) REC.chunks.push(e.data); };
+    REC.rec.start();
+    return true;
+  }).catch(e => { REC.err = (e && e.name) || 'Error'; REC.rec = null; return false; });
+}
+function recStop() {             // → { url, type } 또는 null
+  const r = REC.rec;
+  REC.rec = null;
+  if (!r || r.state === 'inactive') return Promise.resolve(null);
+  return new Promise(res => {
+    r.onstop = () => {
+      const blob = new Blob(REC.chunks, { type: r.mimeType || 'audio/webm' });
+      if (!blob.size) return res(null);
+      const url = URL.createObjectURL(blob);
+      REC.urls.push(url);
+      res({ url, type: blob.type });
+    };
+    try { r.stop(); } catch (e) { res(null); }
+  });
+}
+function recCloseMic() {
+  if (REC.rec && REC.rec.state !== 'inactive') { try { REC.rec.stop(); } catch (e) {} }
+  REC.rec = null;
+  if (REC.stream) { REC.stream.getTracks().forEach(t => t.stop()); REC.stream = null; }
+}
+function recRelease() { recCloseMic(); REC.urls.forEach(u => URL.revokeObjectURL(u)); REC.urls = []; }
+function recFileName(q, clip) {
+  const ext = /mp4|aac|m4a/.test(clip.type) ? 'm4a' : /ogg/.test(clip.type) ? 'ogg' : 'webm';
+  return `KAI면접_${q.set.id}-${q.n}_내답변.${ext}`;
+}
+function recPlayer(q, clip) {
+  return `<audio controls preload="metadata" src="${clip.url}"></audio>
+    <a class="muted" href="${clip.url}" download="${esc(recFileName(q, clip))}">💾 파일로 저장</a>`;
+}
+function recMsg() {
+  if (!recOK()) return '이 브라우저는 녹음을 지원하지 않아 녹음 없이 진행합니다.';
+  if (REC.err === 'NotAllowedError') return '마이크가 막혀 있어 녹음 없이 진행합니다 — 주소창 왼쪽 자물쇠에서 마이크를 허용하세요.';
+  if (REC.err === 'NotFoundError') return '마이크를 찾지 못해 녹음 없이 진행합니다.';
+  if (REC.err) return '녹음을 시작하지 못해 녹음 없이 진행합니다.';
+  return '';
+}
+
 function startMock() {
   const Q = allQs();
   if (!Q.length) return;
@@ -545,6 +656,7 @@ function startMock() {
 function startRun(list, title) {
   if (!list || !list.length) return;
   stopTimer();
+  recRelease();                  // 지난 연습의 녹음은 지운다
   run = { list, title, i: 0, res: [], t0: Date.now() };
   $$('.tab').forEach(t => t.classList.toggle('on', t.dataset.view === 'iv'));
   if (!/^#iv/.test(location.hash)) history.replaceState(null, '', '#iv');
@@ -563,7 +675,7 @@ function runHead(step) {
       ${q.item.core ? '<span class="pill core">⭐ 필수</span>' : ''}${q.item.heard ? '<span class="pill heard">🔁 복원 · 중요</span>' : ''}</div>`;
 }
 function bindQuit(v) {
-  v.querySelector('[data-a="quit"]').onclick = () => { stopTimer(); run = null; go('iv'); };
+  v.querySelector('[data-a="quit"]').onclick = () => { stopTimer(); recRelease(); run = null; go('iv'); };
 }
 
 function drawRunQ() {
@@ -579,6 +691,10 @@ function drawRunQ() {
     </div>
     <div class="explain" style="margin-top:10px">답을 <b>속으로 읽지 말고 실제로 말하세요.</b>
       결론 먼저 → 이유·경험 → 입사 후 어떻게, 순서면 충분합니다. 시간이 끝나면 모범 답변이 열립니다.</div>
+    <div class="recbar">
+      <button class="btn btn-sm" id="rcTog"></button>
+      <span id="rcState" class="muted"></span>
+    </div>
     <div class="row" style="margin-top:12px">
       <button class="btn btn-primary" id="rnDone">답변 마침 → 모범 답변 보기</button>
     </div>
@@ -586,10 +702,41 @@ function drawRunQ() {
   v.appendChild(card);
   bindQuit(v);
   window.scrollTo(0, 0);
-  const t0 = Date.now();
-  const finish = timeUp => { const used = Math.min(SPEAK_SEC, Math.round((Date.now() - t0) / 1000)); stopTimer(); drawRunA(used, timeUp); };
+
+  let t0 = 0, done = false;
+  const paintRec = () => {
+    const tog = $('#rcTog'), st = $('#rcState');
+    if (!tog) return;
+    tog.textContent = recOn() ? '🎙 녹음 켜짐' : '🎙 녹음 꺼짐';
+    tog.classList.toggle('on', recOn());
+    tog.disabled = !recOK();
+    st.innerHTML = REC.rec ? '<span class="recdot"></span> 녹음 중 — 끝나면 바로 다시 들을 수 있어요'
+      : recOn() && !t0 ? '마이크 준비 중… 허용 창이 뜨면 「허용」을 누르세요'
+      : recMsg() || (recOn() ? '' : '녹음 없이 연습합니다. 켜면 내 답변을 다시 들어 볼 수 있어요.');
+  };
+  const begin = () => {
+    if (done || t0 || !run || run.list[run.i] !== q || !card.isConnected) return;
+    t0 = Date.now();
+    paintRec();
+    startTimer(SPEAK_SEC, t0, () => finish(true));
+  };
+  const finish = timeUp => {
+    if (done) return;
+    done = true;
+    const used = t0 ? Math.min(SPEAK_SEC, Math.round((Date.now() - t0) / 1000)) : 0;
+    stopTimer();
+    $('#rnDone').disabled = true;
+    recStop().then(clip => { if (run && run.list[run.i] === q) drawRunA(used, timeUp, clip); });
+  };
   $('#rnDone').onclick = () => finish(false);
-  startTimer(SPEAK_SEC, t0, () => finish(true));
+  $('#rcTog').onclick = () => {
+    ST.recOn = !recOn(); save();
+    if (ST.recOn) recStart().then(() => { if (!t0) begin(); paintRec(); });
+    else { recCloseMic(); if (!t0) begin(); paintRec(); }
+  };
+  paintRec();
+  /* 녹음이 켜져 있으면 마이크가 준비된 뒤(처음엔 허용 창) 시간을 재기 시작한다 */
+  if (recOn()) recStart().then(begin); else begin();
 }
 
 /* 남은 시간 표시 — 숨은 탭에서 느려져도 시각으로 계산 */
@@ -619,7 +766,7 @@ function levelOf(got, total) {
   return '하';
 }
 
-function drawRunA(used, timeUp) {
+function drawRunA(used, timeUp, clip) {
   const v = $('#view'), q = run.list[run.i], it = q.item;
   const keys = it.keys || [];
   let lv = '', manual = false;
@@ -630,6 +777,12 @@ function drawRunA(used, timeUp) {
     <div class="muted">${timeUp ? '⏰ 시간 종료' : `⏱ ${used}초 동안 말함`}</div>
   </div>`));
   bindQuit(v);
+  if (clip) v.appendChild(el(`<div class="card recplay">
+    <h3>🎧 내 답변 다시 듣기</h3>
+    <div class="recrow">${recPlayer(q, clip)}</div>
+    <div class="muted">면접관이 되었다고 생각하고 들어 보세요 — 결론이 먼저 나왔나, "음…"이 많지 않나, 목소리 크기·속도는 괜찮나.
+      들은 뒤 아래 키워드에 체크하세요. 녹음은 <b>이 화면에만</b> 있고 어디에도 보내지지 않으며, 연습을 끝내면 지워집니다.</div>
+  </div>`));
 
   const ev = el(`<div class="card">
     <h3>✍️ 스스로 평가</h3>
@@ -679,7 +832,7 @@ function drawRunA(used, timeUp) {
     let autoFlag = false;
     if (lv === '하' && !ST.flag[q.qid]) { ST.flag[q.qid] = Date.now(); autoFlag = true; }   // 못 한 질문은 다시 볼 목록에
     save();
-    run.res.push({ q, lv, got: g, total: keys.length, missed, sec: used, autoFlag });
+    run.res.push({ q, lv, got: g, total: keys.length, missed, sec: used, autoFlag, clip });
     if (lv === '상') fxSafe(F => F.ok(e.currentTarget));
     run.i++;
     if (run.i >= run.list.length) drawRunEnd(); else drawRunQ();
@@ -696,6 +849,8 @@ function drawRunEnd() {
   const cnt = k => R.filter(r => r.lv === k).length;
   const flagged = R.filter(r => r.autoFlag).length;
   const isMock = n >= 3;
+  const clips = R.filter(r => r.clip).length;
+  recCloseMic();                 // 연습이 끝났으니 마이크는 닫는다(녹음은 이 화면을 떠날 때까지 남김)
   v.innerHTML = '';
   v.appendChild(el(`<div class="card" style="text-align:center">
     <div class="muted">${esc(run.title)}</div>
@@ -705,9 +860,12 @@ function drawRunEnd() {
     <div id="rankBox" style="margin-top:12px"></div>
     <div id="rSubmitAnchor" style="margin-top:12px"></div>
   </div>`));
-  v.appendChild(el(`<div class="card"><h3>문항별 자기평가</h3><table class="rtable"><tbody>
+  v.appendChild(el(`<div class="card"><h3>문항별 자기평가</h3>
+    ${clips ? `<div class="muted" style="margin-bottom:8px">🎧 녹음한 답변 ${clips}개를 문항 아래에서 다시 들을 수 있습니다. 다른 화면으로 가면 지워지니 남기려면 「💾 파일로 저장」을 누르세요.</div>` : ''}
+    <table class="rtable"><tbody>
     ${R.map((r, i) => `<tr><td><b>${i + 1}.</b> ${txt(r.q.item.q)}
-        ${r.missed.length ? `<div class="muted">빠진 키워드: ${r.missed.map(esc).join(', ')}</div>` : ''}</td>
+        ${r.missed.length ? `<div class="muted">빠진 키워드: ${r.missed.map(esc).join(', ')}</div>` : ''}
+        ${r.clip ? `<div class="recrow">${recPlayer(r.q, r.clip)}</div>` : ''}</td>
       <td><span class="pill ${r.lv === '상' ? 'ok' : r.lv === '하' ? 'no' : 'real'}">${r.lv}</span></td></tr>`).join('')}
   </tbody></table></div>`));
   const again = el(`<div class="card row" style="justify-content:center">
