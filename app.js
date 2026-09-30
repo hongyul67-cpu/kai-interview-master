@@ -37,13 +37,21 @@ const PLAN_L = [
   ['L9',  '🏭', '생산기술 실무 — 치구·BOM·작업표준·GD&T·5Why·FOD'],
   ['L10', '🏢', 'KAI 회사·제품·직무 이해'],
 ];
+/* 화면에 보이는 순서 = 면접에서 먼저·자주 묻는 것부터 (자기소개·지원동기 → 선배 후기 → 인성 → 기술) */
 const PLAN_I = [
+  ['I4', 'company', '회사·직무 — 자기소개·지원 동기·마지막 한마디'],
+  ['I5', 'hr',      '복원 질문 ① 인성면접 — 20년 뒤·가치관·직장·부당한 대우'],
+  ['I6', 'pt',      '복원 질문 ② PT·실무면접 — 희망 직무·작품 심층 질문·자동화'],
+  ['I3', 'hr',      '인성·상황면접 — 협업·안전·품질·갈등'],
   ['I1', 'tech',    '기술면접 ① 조립·체결·치구·도면'],
   ['I2', 'tech',    '기술면접 ② 재료·부식·실링·복합재·NDT'],
-  ['I3', 'hr',      '인성·상황면접 — 협업·안전·품질·갈등'],
-  ['I4', 'company', '회사·직무 — 자기소개·지원 동기·마지막 한마디'],
 ];
-const KIND = { tech: '🔧 기술면접', hr: '🤝 인성·상황', company: '🏢 회사·직무' };
+const KIND = { company: '🏢 회사·직무', hr: '🤝 인성·상황', pt: '📊 PT·실무', tech: '🔧 기술면접' };
+/* ⭐ 필수 단원 — 면접에 가장 자주 이어지는 기본. 단원 목록에서 앞에 둡니다. 나머지는 심화 */
+const CORE_UNITS = ['L1', 'L2', 'L7', 'L9', 'L10'];
+const isCoreUnit = id => CORE_UNITS.includes(id);
+/* 면접 질문의 "중요" = ⭐ 필수(core) + 🔁 복원 질문(heard: 선배 응시 후기로 되살린 질문 — 기출 아님) */
+const isImp = it => !!(it && (it.core || it.heard));
 
 /* ── 도우미 ── */
 const $   = s => document.querySelector(s);
@@ -70,8 +78,10 @@ function learnList() {          // 계획 순서 + 계획에 없는 단원은 �
   const got = {}; KAI.learn.forEach(u => { if (u && u.id) got[u.id] = u; });
   const out = PLAN_L.map(([id, emoji, title]) => got[id] || { id, emoji, title, soon: true });
   KAI.learn.filter(u => u && !PLAN_L.some(p => p[0] === u.id)).sort(byOrder).forEach(u => out.push(u));
-  return out;
+  return out.filter(u => isCoreUnit(u.id)).concat(out.filter(u => !isCoreUnit(u.id)));
 }
+/* 용어는 ⭐핵심을 앞으로 (원래 순서는 유지) */
+const termsSorted = u => (u.terms || []).filter(t => t.core).concat((u.terms || []).filter(t => !t.core));
 function learnById(id) { return KAI.learn.find(u => u && u.id === id); }
 function ivList() {
   const got = {}; KAI.iv.forEach(s => { if (s && s.id) got[s.id] = s; });
@@ -81,7 +91,12 @@ function ivList() {
 }
 function allQs() {              // [{ set, item, qid, n }]
   const out = [];
-  ivList().forEach(set => (set.items || []).forEach((item, i) => out.push({ set, item, qid: `${set.id}-${i + 1}`, n: i + 1 })));
+  ivList().forEach(set => {
+    const one = (set.items || []).map((item, i) => ({ set, item, qid: `${set.id}-${i + 1}`, n: i + 1 }));
+    /* ⭐ 필수 → 🔁 복원 질문 → 나머지 순서 */
+    const rank = q => q.item.core ? 0 : q.item.heard ? 1 : 2;
+    one.sort((a, b) => rank(a) - rank(b) || a.n - b.n).forEach(q => out.push(q));
+  });
   return out;
 }
 
@@ -91,7 +106,7 @@ function go(h) { if (location.hash === '#' + h) route(); else location.hash = h;
 function route() {
   stopTimer();
   const [view, arg] = decodeURIComponent(location.hash.slice(1) || 'home').split('/');
-  curView = ['home', 'learn', 'field', 'quiz', 'iv'].includes(view) ? view : 'home';
+  curView = ['home', 'learn', 'field', 'quiz', 'iv', 'pt'].includes(view) ? view : 'home';
   $$('.tab').forEach(t => t.classList.toggle('on', t.dataset.view === curView));
   const v = $('#view');
   v.innerHTML = '';
@@ -101,6 +116,7 @@ function route() {
     if (curView === 'field') renderField(v, arg || 'all');
     if (curView === 'quiz')  renderQuiz(v, arg);
     if (curView === 'iv')    renderIv(v, arg || 'all');
+    if (curView === 'pt')    renderPt(v);
   } catch (e) {
     console.error(e);
     v.appendChild(el(`<div class="card explain warn">화면을 그리다 문제가 생겼습니다: ${esc(e.message)}</div>`));
@@ -120,6 +136,7 @@ function renderHome(v) {
   const readN = ready.filter(u => ST.read[u.id]).length;
   const doneN = Q.filter(q => ST.self[q.qid]).length;
   const flagN = Q.filter(q => ST.flag[q.qid]).length;
+  const coreQ = Q.filter(q => isImp(q.item)), heardN = Q.filter(q => q.item.heard).length;
   const checkN = ready.reduce((s, u) => s + (u.check || []).length, 0);
 
   v.appendChild(el(`<div class="hero">
@@ -132,7 +149,9 @@ function renderHome(v) {
       <button class="step" data-go="quiz"><div class="no">STEP 2</div><b>✅ 점검 퀴즈</b>
         <span>배운 것을 연습 8문항·종합시험 20문항으로 확인합니다.</span></button>
       <button class="step" data-go="iv"><div class="no">STEP 3</div><b>🎤 면접 연습</b>
-        <span>질문만 보고 ${SPEAK_SEC}초 동안 말하기 → 모범 답변과 비교.</span></button>
+        <span>질문만 보고 ${SPEAK_SEC}초 동안 말하기 → 모범 답변과 비교. ⭐ 필수 질문부터.</span></button>
+      <button class="step" data-go="pt"><div class="no">STEP 4</div><b>📊 PT 면접 준비</b>
+        <span>고등학교 때 만든 작품·프로젝트로 발표를 짜고, 심층 질문에 대비합니다.</span></button>
     </div>
   </div>`));
 
@@ -147,6 +166,7 @@ function renderHome(v) {
     <div class="muted">질문 ${MOCK_N}개를 무작위로 뽑아 이어서 묻습니다. 질문마다 ${SPEAK_SEC}초, 끝나면 스스로 평가합니다.</div>
     <div class="row" style="margin-top:10px">
       <button class="btn btn-primary" id="hmMock" ${Q.length ? '' : 'disabled'}>🎲 무작위 ${MOCK_N}문항 시작</button>
+      ${coreQ.length ? `<button class="btn btn-core" id="hmCore">⭐ 중요 질문 ${coreQ.length}개 연습</button>` : ''}
       ${flagN ? `<button class="btn" id="hmFlag">📌 다시 볼 질문 ${flagN}개 연습</button>` : ''}
     </div>
     ${Q.length ? '' : '<div class="muted" style="margin-top:6px">면접 질문을 준비하고 있습니다.</div>'}
@@ -161,9 +181,14 @@ function renderHome(v) {
     <h3>이 도구를 쓰기 전에</h3>
     <ul style="margin:0;padding-left:20px">
       <li>배우기 단원 ${ready.length}개 · 점검 문항 ${checkN}개 · 면접 예상 질문 ${Q.length}개가 들어 있습니다${ready.length < PLAN_L.length ? ' (나머지는 준비 중)' : ''}.</li>
-      <li>면접 질문은 모두 <b>예상 질문</b>입니다. 실제 기출이 아닙니다.</li>
+      <li><span class="pill core">⭐ 필수</span> 표시는 <b>가장 먼저 익힐 것</b>입니다 — 필수 단원·핵심 용어·필수 질문을 앞에 두었습니다.</li>
+      <li>면접 질문은 <b>예상 질문</b>과 <b>복원 질문</b>입니다. <span class="pill heard">🔁 복원 질문 · 중요</span> ${heardN}개는
+        실제 기출(공식 공개 문제)이 아니라 <b>선배들의 응시 후기로 되살린 질문</b>이라 중요하게 표시했습니다.
+        해마다 달라질 수 있으니 답을 통째로 외우지 말고 답의 구조를 익히세요.</li>
       <li>이론은 국토교통부 항공정비 표준교재 등을 <b>요약·재서술</b>했고 출처 쪽번호를 적었습니다.
         <span class="pill real">교재 밖 실무 지식</span> 딱지는 교재에 없는 일반 현장 지식입니다.</li>
+      <li><b>모든 내용은 참고 자료입니다.</b> 적힌 출처(교재 쪽번호·공식 홈페이지·후기)를 직접 다시 확인하고,
+        모자란 부분은 교재와 공식 자료로 <b>더 찾아 공부</b>해야 합니다.</li>
       <li>모범 답변의 <b>[ ]</b> 칸은 여러분의 경험(현장실습·동아리·자격증 준비)으로 바꿔 말하세요.</li>
       <li>기록은 이 기기에만 저장됩니다. 공용 PC 라면 끝나고 왼쪽 아래 🧹 기록 초기화를 누르세요.</li>
     </ul>
@@ -171,6 +196,7 @@ function renderHome(v) {
 
   v.querySelectorAll('[data-go]').forEach(b => b.onclick = () => go(b.dataset.go));
   const m = $('#hmMock'); if (m) m.onclick = () => startMock();
+  const c = $('#hmCore'); if (c) c.onclick = () => startRun(allQs().filter(q => isImp(q.item)), '⭐ 중요 질문(필수 + 복원 질문)');
   const f = $('#hmFlag'); if (f) f.onclick = () => startRun(allQs().filter(q => ST.flag[q.qid]), '📌 다시 볼 질문');
 }
 
@@ -179,22 +205,29 @@ function renderLearn(v) {
   const L = learnList();
   v.appendChild(el(`<div class="card">
     <h2>📖 배우기</h2>
-    <div class="muted">단원을 고르면 요약 → 소제목별 정리 → 용어 → 현장 대응표 순서로 보여 줍니다.
+    <div class="muted">단원을 고르면 요약 → <b>⭐ 먼저 익힐 핵심 용어</b> → 소제목별 정리 → 전체 용어 → 현장 대응표 순서로 보여 줍니다.
       다 읽었으면 단원 끝의 <b>✅ 다 읽었어요</b>를 누르세요.</div>
   </div>`));
+  const groups = [
+    ['⭐ 필수 단원 — 먼저 읽으세요', '면접에서 가장 자주 이어지는 기본(기체 구조·리벳·도면·생산기술 실무·KAI 회사)', L.filter(u => isCoreUnit(u.id)), true],
+    ['📘 심화 단원 — 필수를 읽은 다음에', '패스너·부식·복합재·비파괴검사·금속재료', L.filter(u => !isCoreUnit(u.id)), false],
+  ];
+  groups.forEach(([gt, gs, list, core]) => {
+  if (!list.length) return;
+  v.appendChild(el(`<div class="ugroup ${core ? 'core' : ''}"><b>${gt}</b><span>${gs}</span></div>`));
   const grid = el('<div class="units"></div>');
-  L.forEach(u => {
+  list.forEach(u => {
     if (u.soon) {
       grid.appendChild(el(`<div class="unit soon"><div class="em">${u.emoji}</div><div>
         <div class="t">${esc(u.title)}</div><div class="meta"><span class="pill">준비 중</span></div></div></div>`));
       return;
     }
-    const b = el(`<button class="unit ${ST.read[u.id] ? 'read' : ''}"><div class="em">${u.emoji || '📘'}</div><div>
-      <div class="t">${txt(u.title)}</div>
+    const b = el(`<button class="unit ${ST.read[u.id] ? 'read' : ''} ${core ? 'coreu' : ''}"><div class="em">${u.emoji || '📘'}</div><div>
+      <div class="t">${core ? '<span class="pill core">⭐ 필수</span> ' : ''}${txt(u.title)}</div>
       <div class="s">${txt(u.summary || '')}</div>
       <div class="meta">
         <span class="pill blue">소제목 ${(u.sections || []).length}</span>
-        <span class="pill">용어 ${(u.terms || []).length}</span>
+        <span class="pill">용어 ${(u.terms || []).length} · ⭐핵심 ${(u.terms || []).filter(t => t.core).length}</span>
         <span class="pill">대응표 ${(u.field || []).length}</span>
         ${ST.read[u.id] ? '<span class="pill ok">✅ 읽음</span>' : ''}
       </div></div></button>`);
@@ -202,6 +235,7 @@ function renderLearn(v) {
     grid.appendChild(b);
   });
   v.appendChild(grid);
+  });
 }
 
 /* ══════════════ 배우기 — 단원 화면 ══════════════ */
@@ -218,15 +252,25 @@ function renderUnit(v, id) {
   const src = (u.source || []).map(s => `<li>${txt(s)}</li>`).join('');
   const head = el(`<div class="card">
     <div class="uhead"><div class="em">${u.emoji || '📘'}</div><div>
-      <h2>${txt(u.title)}</h2>
+      <h2>${isCoreUnit(u.id) ? '<span class="pill core">⭐ 필수 단원</span> ' : ''}${txt(u.title)}</h2>
       <div>${txt(u.summary || '')}</div>
     </div></div>
-    ${src ? `<div class="src"><b>출처</b><ul style="margin:2px 0 0;padding-left:18px">${src}</ul></div>` : ''}
+    ${src ? `<div class="src"><b>출처</b><ul style="margin:2px 0 0;padding-left:18px">${src}</ul>
+      <div class="refnote">📌 참고용 요약입니다. 출처(교재 쪽번호·공식 자료)를 직접 확인하고, 모자란 부분은 원문으로 더 공부하세요.</div></div>` : ''}
     <div class="toc">${secs.map((s, i) => `<a href="javascript:void 0" data-sec="${i}">${i + 1}. ${txt(s.h)}</a>`).join('')}
       ${(u.terms || []).length ? '<a href="javascript:void 0" data-sec="terms">📘 용어</a>' : ''}
       ${(u.field || []).length ? '<a href="javascript:void 0" data-sec="field">🏭 현장 대응표</a>' : ''}</div>
   </div>`);
   v.appendChild(head);
+
+  const coreT = (u.terms || []).filter(t => t.core);
+  if (coreT.length) {
+    v.appendChild(el(`<div class="card corebox">
+      <h3>⭐ 먼저 익힐 핵심 용어 ${coreT.length}개</h3>
+      <div class="muted" style="margin-bottom:8px">면접에서 가장 자주 쓰이는 기본 용어입니다. 이 뜻부터 입으로 설명할 수 있게 익히세요.</div>
+      <div class="terms">${coreT.map(t => `<div class="term core"><b>⭐ ${txt(t.t)}</b><span>${txt(t.d)}</span></div>`).join('')}</div>
+    </div>`));
+  }
 
   secs.forEach((s, i) => {
     v.appendChild(el(`<div class="card sec" id="sec-${i}">
@@ -238,8 +282,8 @@ function renderUnit(v, id) {
   });
 
   if ((u.terms || []).length) {
-    v.appendChild(el(`<div class="card" id="sec-terms"><h3>📘 용어 ${u.terms.length}개</h3>
-      <div class="terms">${u.terms.map(t => `<div class="term"><b>${txt(t.t)}</b><span>${txt(t.d)}</span></div>`).join('')}</div>
+    v.appendChild(el(`<div class="card" id="sec-terms"><h3>📘 용어 ${u.terms.length}개 <span class="muted" style="font-size:13px;font-weight:600">— ⭐ 핵심 먼저</span></h3>
+      <div class="terms">${termsSorted(u).map(t => `<div class="term ${t.core ? 'core' : ''}"><b>${t.core ? '⭐ ' : ''}${txt(t.t)}</b><span>${txt(t.d)}</span></div>`).join('')}</div>
     </div>`));
   }
   if ((u.field || []).length) {
@@ -342,26 +386,42 @@ function renderIv(v, pick) {
   const sets = ivList(), Q = allQs();
   const flagged = Q.filter(q => ST.flag[q.qid]);
   const cnt = k => Q.filter(q => q.set.kind === k).length;
+  const imp = Q.filter(q => isImp(q.item)), heard = Q.filter(q => q.item.heard);
 
   v.appendChild(el(`<div class="card">
     <h2>🎤 면접 연습</h2>
     <div class="muted">질문을 눌러 펼치면 <b>면접관이 확인하려는 것 · STAR 구조 · 키워드 · 모범 답변 · 꼬리 질문</b>이 나옵니다.
       <b>🎤 말하기 연습</b>은 질문만 보여 주고 ${SPEAK_SEC}초를 잽니다 — 실제로 소리 내어 답한 뒤 스스로 평가하세요.</div>
+    <div class="explain" style="margin-top:8px"><span class="pill core">⭐ 필수</span> 누구나 받는 기본 질문 ·
+      <span class="pill heard">🔁 복원 질문 · 중요</span> 실제 기출은 아니지만 선배들의 응시 후기로 되살린 질문 — 둘 다 <b>묶음마다 앞에</b> 두었습니다.</div>
     <div class="row" style="margin-top:10px">
+      <button class="btn btn-core" id="ivCore" ${imp.length ? '' : 'disabled'}>⭐ 중요 질문 ${imp.length}개 말하기 연습</button>
       <button class="btn btn-primary" id="ivMock" ${Q.length ? '' : 'disabled'}>🎲 무작위 모의면접 ${MOCK_N}문항</button>
       <button class="btn" id="ivFlag" ${flagged.length ? '' : 'disabled'}>📌 다시 볼 질문 ${flagged.length}개 연습</button>
     </div>
   </div>`));
   $('#ivMock').onclick = () => startMock();
+  $('#ivCore').onclick = () => startRun(allQs().filter(q => isImp(q.item)), '⭐ 중요 질문(필수 + 복원 질문)');
   $('#ivFlag').onclick = () => startRun(allQs().filter(q => ST.flag[q.qid]), '📌 다시 볼 질문');
 
   const chips = el('<div class="chips"></div>');
-  [['all', '전체', Q.length], ['tech', KIND.tech, cnt('tech')], ['hr', KIND.hr, cnt('hr')],
-   ['company', KIND.company, cnt('company')], ['flag', '📌 다시 볼 질문', flagged.length]]
+  [['all', '전체', Q.length], ['imp', '⭐ 중요 질문', imp.length], ['heard', '🔁 복원 질문', heard.length],
+   ['company', KIND.company, cnt('company')], ['hr', KIND.hr, cnt('hr')], ['pt', KIND.pt, cnt('pt')],
+   ['tech', KIND.tech, cnt('tech')], ['flag', '📌 다시 볼 질문', flagged.length]]
     .forEach(([k, name, n]) => chips.appendChild(el(`<button class="chip ${pick === k ? 'on' : ''}" data-k="${k}" id="ivChip-${k}">${name}<span class="n">${n}</span></button>`)));
   v.appendChild(chips);
   chips.querySelectorAll('.chip').forEach(c => c.onclick = () => go('iv/' + c.dataset.k));
 
+  if (pick === 'imp' || pick === 'heard') {
+    const list = pick === 'imp' ? imp : heard;
+    v.appendChild(el(`<div class="card explain">${pick === 'imp'
+      ? '⭐ 필수 질문과 🔁 복원 질문을 모았습니다. 면접 전날에는 이것부터 소리 내어 답해 보세요.'
+      : '🔁 복원 질문은 실제 기출(공식 공개 문제)이 아니라 <b>선배들의 응시 후기로 되살린 질문</b>입니다. 누가 언제 들은 질문인지 각 질문 안에 적었습니다. 해마다 달라질 수 있습니다.'}</div>`));
+    const box = el('<div class="ivset"></div>');
+    list.forEach(q => box.appendChild(qDetails(q, true)));
+    v.appendChild(box);
+    return;
+  }
   if (pick === 'flag') {
     if (!flagged.length) { v.appendChild(el('<div class="card empty">📌 표시한 질문이 없습니다.<br><span class="muted">질문을 펼쳐 「📌 다시 볼 질문」을 누르면 여기에 모입니다.</span></div>')); return; }
     const box = el('<div class="ivset"></div>');
@@ -388,9 +448,9 @@ function renderIv(v, pick) {
 /* 질문 하나 — 아코디언 */
 function qDetails(q, showSet) {
   const it = q.item, me = ST.self[q.qid];
-  const d = el(`<details class="q"><summary>
+  const d = el(`<details class="q ${isImp(it) ? 'imp' : ''}"><summary>
       <span class="n">${esc(q.set.id)}-${q.n}</span>
-      <span class="qt">${txt(it.q)}
+      <span class="qt">${it.core ? '<span class="pill core">⭐ 필수</span> ' : ''}${it.heard ? '<span class="pill heard">🔁 복원 · 중요</span> ' : ''}${txt(it.q)}
         ${showSet ? `<span class="pill" style="margin-left:4px">${txt(q.set.title)}</span>` : ''}</span>
       <span class="selfmark">${ST.flag[q.qid] ? '📌' : ''}${me ? ` <span class="pill ${me.lv === '상' ? 'ok' : me.lv === '하' ? 'no' : 'real'}">${me.lv}</span>` : ''}</span>
       <span class="ar">▶</span>
@@ -438,6 +498,7 @@ function answerHtml(it) {
     ? `<div class="lbl">⭐ STAR 로 짜기</div><div class="star">
         ${[['S', '상황'], ['T', '과제'], ['A', '행동'], ['R', '결과']].map(([k, n]) => `<div><b>${k} · ${n}</b>${txt(S[k] || '')}</div>`).join('')}</div>` : '';
   return `
+    ${it.heard ? `<div class="heardline">🔁 <b>복원 질문 · 중요</b> — 실제 기출이 아니라 선배 응시 후기로 되살린 질문입니다.<br><span>${txt(it.heard)}</span></div>` : ''}
     ${it.why ? `<div class="lbl">🎯 면접관이 확인하려는 것</div><div>${txt(it.why)}</div>` : ''}
     ${star}
     ${(it.keys || []).length ? `<div class="lbl">🔑 꼭 넣을 키워드</div><div class="keys">${it.keys.map(k => `<span>${txt(k)}</span>`).join('')}</div>` : ''}
@@ -455,7 +516,7 @@ function startMock() {
   if (!Q.length) return;
   // 분류마다 하나씩 먼저 뽑고 나머지를 무작위로 채움
   const pickd = [], seen = new Set();
-  ['tech', 'hr', 'company'].forEach(k => {
+  ['company', 'hr', 'pt', 'tech'].forEach(k => {
     const c = shuffle(Q.filter(q => q.set.kind === k))[0];
     if (c) { pickd.push(c); seen.add(c.qid); }
   });
@@ -480,7 +541,8 @@ function runHead(step) {
       <button class="btn btn-sm" data-a="quit">그만하기</button></div>
     <div class="progress"><i style="width:${(run.i + step) / run.list.length * 100}%"></i></div>
     <div class="row"><span class="pill blue">${run.i + 1} / ${run.list.length}</span>
-      <span class="pill">${esc(KIND[q.set.kind] || '')}</span><span class="pill">${esc(q.set.id)}-${q.n}</span></div>`;
+      <span class="pill">${esc(KIND[q.set.kind] || '')}</span><span class="pill">${esc(q.set.id)}-${q.n}</span>
+      ${q.item.core ? '<span class="pill core">⭐ 필수</span>' : ''}${q.item.heard ? '<span class="pill heard">🔁 복원 · 중요</span>' : ''}</div>`;
 }
 function bindQuit(v) {
   v.querySelector('[data-a="quit"]').onclick = () => { stopTimer(); run = null; go('iv'); };
@@ -513,17 +575,18 @@ function drawRunQ() {
 }
 
 /* 남은 시간 표시 — 숨은 탭에서 느려져도 시각으로 계산 */
-function startTimer(sec, t0, onEnd) {
+function startTimer(sec, t0, onEnd, msg) {
   stopTimer();
+  const M = Object.assign({ run: '소리 내어 답해 보세요', low: '마무리하세요 — 마지막 한 문장', lowAt: 10 }, msg || {});
   const paint = () => {
     const tt = $('#tt'), tb = $('#tb'), th = $('#thint');
     if (!tt) return stopTimer();
     const left = Math.max(0, sec - (Date.now() - t0) / 1000);
     tt.textContent = fmtSec(Math.ceil(left));
     tb.style.width = (left / sec * 100) + '%';
-    const low = left <= 10;
+    const low = left <= M.lowAt;
     tt.classList.toggle('low', low); tb.classList.toggle('low', low);
-    th.textContent = low ? '마무리하세요 — 마지막 한 문장' : '소리 내어 답해 보세요';
+    th.textContent = low ? M.low : M.run;
     if (left <= 0) { stopTimer(); onEnd(); }
   };
   paint();
@@ -673,6 +736,174 @@ function mountSubmit(pct, correct, total, sec, R) {
     });
     if (btn) { btn.style.width = '100%'; btn.style.justifyContent = 'center'; btn.textContent = '📤 [모의면접] 자기평가 결과 제출'; }
   } catch (e) { console.warn('ResultCollector', e); }
+}
+
+/* ══════════════ 📊 PT 면접 준비 ══════════════
+   근거: 선배 응시 후기(PT면접 — 경력·자격증·성장목표 3가지 필수, 자기소개서 작품 심층 질문 다수)
+        + KAI 채용 홈페이지(직무에 따라 PT 심사가 더해질 수 있음, L10).
+   작성지는 이 기기에만 저장(ST.pt). 발표 시간·형식은 해마다 다르므로 정하지 않고 고르게 둡니다. */
+const PT_PICK = [
+  '내가 <b>직접 만든 부분</b>이 크다(팀 작품이면 내 역할을 분명히 말할 수 있다)',
+  '<b>재료 → 공구 → 순서</b>를 처음부터 끝까지 설명할 수 있다',
+  '<b>실패하고 고친</b> 이야기가 있다',
+  '치수·시간·개수 같은 <b>숫자</b>가 남아 있다',
+  '사진·스케치·도면·CAD 파일 같은 <b>증거 자료</b>가 있다',
+  '도면·가공·조립·측정·품질·자동화 중 <b>KAI 일과 이어지는 점</b>이 있다',
+  '<b>자기소개서에 쓴 내용과 같다</b>(면접관은 자소서를 보며 묻습니다)',
+];
+const PT_TOPICS = ['기능경기대회·실기 과제 작품', '캡스톤·졸업 작품', 'CAD 설계 → 3D 프린팅 부품', '선반·밀링·CNC 가공 작품',
+  'PLC·공압 자동화 모형(분류 컨베이어 등)', '동아리 로봇·드론 제작', '현장실습에서 맡은 공정·개선 경험', '생활 속 불편을 해결한 발명품'];
+const PT_SLIDES = [
+  ['표지', '제목 한 줄 — 예) "확인하는 습관으로 만든 ○○". 이름·학교 표시는 안내문대로', ''],
+  ['나는 이런 사람', '강점 한 문장 + 그 강점을 보여 줄 작품 예고', ''],
+  ['경력', '현장실습·대회·동아리·프로젝트 — 기간·맡은 역할·한 일', 'must'],
+  ['작품 소개', '무엇을 · 왜(해결하려던 문제) · 언제 만들었나', ''],
+  ['설계', '스케치·CAD·도면 — 치수와 공차를 어떻게 정했나', ''],
+  ['제작 과정', '재료 → 공구 → 순서 (사진). "어떻게 자르고, 어떻게 갈았나"까지', ''],
+  ['문제와 해결', '실패 → 원인(왜?를 거듭) → 바꾼 방법', ''],
+  ['결과', '숫자(치수·시간·개수)·검사 결과·사용해 본 결과', ''],
+  ['자격증', '무엇을 할 수 있다는 증거 — 작품·직무와 연결', 'must'],
+  ['성장 목표', '입사 1년·5년·20년 — KAI 조립 현장에서 어떤 사람이 될지', 'must'],
+  ['마무리', '면접관이 기억할 한 문장 + 감사 인사', ''],
+];
+const PT_DEEP = [
+  ['왜 그 재료를 골랐나요?', '재료의 성질(단단함·가공성·값)과 다른 재료를 비교해 말하기'],
+  ['어떤 공구로 자르고, 어떻게 갈았나요?', '공구 이름 + 순서 + 거친 것 → 고운 것. 후기 예: "돌로 만든 얼음을 어떻게 쪼갰나요", "돌을 어떻게 갈았나요"'],
+  ['치수는 무엇으로 쟀고, 오차는 얼마였나요?', '측정 공구(캘리퍼스·마이크로미터 등)와 실제 숫자'],
+  ['언제, 얼마나 걸려 만들었나요?', '학년·기간·가장 오래 걸린 공정'],
+  ['혼자 만들었나요? 본인 역할은?', '팀이면 내 몫을 정확히. 도움받은 부분은 솔직히'],
+  ['가장 어려웠던 점은?', '실패 → 원인 → 바꾼 방법 → 지금의 습관'],
+  ['안전은 어떻게 지켰나요?', '보안경·마스크·장갑·고정 방법 — 분진·칩·회전체'],
+  ['다시 만든다면 무엇을 바꾸겠어요?', '개선점 1~2개 — 스스로 돌아볼 줄 안다는 증거'],
+  ['상용화(판매)해 볼 생각은 없었나요?', '원가 · 똑같이 여러 개(치구·표준 공정) · 품질·안전 기준 · 누가 살까'],
+  ['이 경험이 KAI 일과 어떻게 이어지나요?', '도면 읽기 · 치수 확인 · 공구 관리 · 보고 습관 등 한 가지로 연결'],
+];
+const PT_FIELDS = [
+  ['title',  '발표 제목(한 줄)', '예) 확인하는 습관으로 만든 ○○'],
+  ['me',     '나는 이런 사람(강점 한 문장)', '예) 도면을 끝까지 확인하는 사람'],
+  ['career', '⭐ 경력 — 현장실습·대회·동아리·프로젝트', '언제, 어디서, 무엇을 맡아, 무엇을 했나'],
+  ['what',   '작품 — 무엇을 · 왜 · 언제', '해결하려던 문제와 만든 시기'],
+  ['design', '설계 — 스케치·CAD·치수', '치수·공차를 어떻게 정했나'],
+  ['make',   '제작 과정 — 재료 → 공구 → 순서', '어떻게 자르고, 어떻게 갈고, 어떻게 이었나'],
+  ['fix',    '문제와 해결', '실패 → 원인 → 바꾼 방법'],
+  ['result', '결과(숫자)', '치수·시간·개수·검사 결과'],
+  ['cert',   '⭐ 자격증 — 무엇을 할 수 있다는 증거', '취득한 것 / 준비 중인 것(시기까지)'],
+  ['goal',   '⭐ 성장 목표 — 1년 · 5년 · 20년', 'KAI 조립 현장에서 어떤 사람이 될지'],
+  ['end',    '마무리 한 문장', '면접관이 기억할 한 문장'],
+];
+
+function renderPt(v) {
+  ST.pt = ST.pt || {};
+  const ptQ = allQs().filter(q => q.set.kind === 'pt');
+  v.appendChild(el(`<div class="card">
+    <h2>📊 PT 면접 준비</h2>
+    <div class="muted">PT(프레젠테이션) 면접은 <b>고등학교 때 직접 만든 작품이나 프로젝트</b>를 바탕으로 준비하는 것이 좋습니다.
+      자기소개서에 쓴 작품을 면접관이 깊게 파고들기 때문입니다.</div>
+    <div class="heardline" style="margin-top:10px">🔁 <b>복원 질문 · 중요 — 선배 응시 후기에서</b><br>
+      <span>· PT에 <b>경력 · 자격증 · 성장 목표</b> 세 가지는 꼭 들어가야 했다(최근 후기)<br>
+      · 자기소개서에 쓴 작품(예: 돌로 만든 얼음)을 만든 이유·방법에 대한 <b>심층 질문이 여러 개</b> 이어졌다(최근 후기)<br>
+      · 두 명이 모두 발표를 마친 뒤 질문을 받았다(2024년 후기)</span></div>
+    <div class="explain" style="margin-top:8px">📌 KAI 채용 홈페이지는 직무에 따라 실무수행·PT 심사 등이 더해질 수 있고 공고마다 다르다고 안내합니다(📖 L10).
+      <b>발표 시간 · 형식(파일/출력물) · 준비물은 해마다 다를 수 있으니 반드시 면접 안내문을 확인</b>하세요.</div>
+    <div class="row" style="margin-top:10px">
+      <button class="btn btn-core" id="ptQ" ${ptQ.length ? '' : 'disabled'}>🎤 PT·실무 복원 질문 ${ptQ.length}개 말하기 연습</button>
+      <a class="btn" href="#iv/pt">질문과 모범 답변 보기</a>
+    </div>
+  </div>`));
+
+  v.appendChild(el(`<div class="card">
+    <h3><span class="num">1</span> 주제 고르기 — 이런 작품이 좋습니다</h3>
+    <div class="kcheck pick">${PT_PICK.map((p, i) => `<label class="${ST.pt['pk' + i] ? 'on' : ''}"><input type="checkbox" data-pk="${i}" ${ST.pt['pk' + i] ? 'checked' : ''}> <span>${p}</span></label>`).join('')}</div>
+    <div class="muted" style="margin-top:8px" id="ptPickN"></div>
+    <div class="lbl">💡 기계·스마트팩토리과 학생이 고를 만한 주제</div>
+    <div class="keys">${PT_TOPICS.map(t => `<span>${esc(t)}</span>`).join('')}</div>
+  </div>`));
+
+  v.appendChild(el(`<div class="card">
+    <h3><span class="num">2</span> 발표 구성 틀 — 슬라이드 순서</h3>
+    <div class="muted" style="margin-bottom:8px"><span class="pill core">⭐ 필수</span> 세 장(경력·자격증·성장 목표)은 빠지면 안 됩니다. 한 장 = 한 메시지, 글자는 적게 사진은 크게.</div>
+    <ol class="slides">${PT_SLIDES.map(([h, d, m]) => `<li class="${m ? 'must' : ''}"><b>${m ? '⭐ ' : ''}${esc(h)}</b><span>${esc(d)}</span></li>`).join('')}</ol>
+    <div class="tip" style="margin-top:10px">⚠️ 회사 로고·기밀 자료·다른 사람 사진은 넣지 않습니다. 인터넷에서 가져온 그림은 출처를 적습니다. 발표 내용과 자기소개서가 서로 어긋나지 않게 맞춰 두세요.</div>
+  </div>`));
+
+  v.appendChild(el(`<div class="card">
+    <h3><span class="num">3</span> 작품 심층 질문 대비 — 이것까지 답할 수 있어야 합니다</h3>
+    <div class="muted" style="margin-bottom:8px">후기에서처럼 면접관은 작품 하나를 두고 "어떻게?", "왜?"를 계속 묻습니다. 질문마다 답할 거리를 작성지에 적어 두세요.</div>
+    <table class="rtable deep"><tbody>${PT_DEEP.map(([q, h], i) => `<tr><td><b>${i + 1}. ${esc(q)}</b><div class="muted">${esc(h)}</div></td></tr>`).join('')}</tbody></table>
+  </div>`));
+
+  const form = el(`<div class="card">
+    <h3><span class="num">4</span> 나의 PT 작성지 <span class="muted" style="font-size:13px;font-weight:600" id="ptFillN"></span></h3>
+    <div class="muted" style="margin-bottom:8px">쓰는 대로 이 기기에만 저장됩니다(다른 사람에게 보이지 않음). 다 쓰면 <b>발표 대본 만들기</b>로 한 번에 모아 보세요.</div>
+    ${PT_FIELDS.map(([k, h, ph]) => `<label class="ptf ${/^⭐/.test(h) ? 'must' : ''}"><b>${esc(h)}</b>
+      <textarea data-f="${k}" rows="${k === 'title' || k === 'me' || k === 'end' ? 1 : 3}" placeholder="${esc(ph)}">${esc(ST.pt[k] || '')}</textarea></label>`).join('')}
+    <div class="row" style="margin-top:10px">
+      <button class="btn btn-primary" id="ptScript">📋 발표 대본 만들기</button>
+      <button class="btn" id="ptCopy" disabled>복사하기</button>
+      <span class="muted" id="ptCopied"></span>
+    </div>
+    <div class="script" id="ptOut" hidden></div>
+  </div>`);
+  v.appendChild(form);
+
+  const min0 = ST.pt.min || 5;
+  v.appendChild(el(`<div class="card">
+    <h3><span class="num">5</span> 리허설 타이머 — 시간 재며 3번 이상</h3>
+    <div class="row" id="ptMins">${[3, 5, 7, 10].map(m => `<button class="chip ${m === min0 ? 'on' : ''}" data-m="${m}">${m}분</button>`).join('')}</div>
+    <div class="tbar" style="margin-top:10px"><i id="tb"></i></div>
+    <div class="row" style="justify-content:space-between">
+      <span class="timer" id="tt">${fmtSec(min0 * 60)}</span>
+      <span class="muted" id="thint">실제 발표 시간은 안내문 기준으로 고르세요</span>
+    </div>
+    <div class="row" style="margin-top:8px">
+      <button class="btn btn-primary" id="ptGo">▶ 시작</button>
+      <button class="btn" id="ptStop">■ 멈춤</button>
+    </div>
+  </div>`));
+
+  v.appendChild(el(`<div class="card explain">📌 이 화면의 내용은 선배 응시 후기와 공식 채용 안내를 바탕으로 정리한 <b>참고 자료</b>입니다.
+    PT 형식은 해마다 바뀔 수 있으니 안내문과 학교 취업지원부 안내를 꼭 다시 확인하고, 모자란 부분은 더 찾아 준비하세요.</div>`));
+
+  /* 동작 */
+  $('#ptQ').onclick = () => startRun(ptQ, '📊 PT·실무 복원 질문');
+  const pickN = () => {
+    const n = PT_PICK.filter((p, i) => ST.pt['pk' + i]).length;
+    $('#ptPickN').textContent = `${n} / ${PT_PICK.length}개 해당 — ${n >= 5 ? '좋은 주제입니다 👍' : '해당하는 것이 많은 작품을 고르세요'}`;
+  };
+  v.querySelectorAll('[data-pk]').forEach(c => c.onchange = () => {
+    ST.pt['pk' + c.dataset.pk] = c.checked; save();
+    c.closest('label').classList.toggle('on', c.checked); pickN();
+  });
+  pickN();
+  const fillN = () => { $('#ptFillN').textContent = `— ${PT_FIELDS.filter(([k]) => (ST.pt[k] || '').trim()).length} / ${PT_FIELDS.length}칸 작성`; };
+  form.querySelectorAll('textarea').forEach(t => t.oninput = () => { ST.pt[t.dataset.f] = t.value; save(); fillN(); });
+  fillN();
+  let script = '';
+  $('#ptScript').onclick = () => {
+    script = PT_FIELDS.map(([k, h]) => `【${h.replace(/^⭐ /, '')}】\n${(ST.pt[k] || '').trim() || '(아직 비어 있음)'}`).join('\n\n');
+    const o = $('#ptOut'); o.hidden = false; o.textContent = script; $('#ptCopy').disabled = false;
+  };
+  $('#ptCopy').onclick = () => {
+    const fallback = () => { selectText($('#ptOut')); $('#ptCopied').textContent = '선택해 두었습니다 — Ctrl+C 로 복사하세요'; };
+    try { navigator.clipboard.writeText(script).then(() => { $('#ptCopied').textContent = '복사했습니다'; }, fallback); }
+    catch (e) { fallback(); }
+  };
+  v.querySelectorAll('#ptMins [data-m]').forEach(b => b.onclick = () => {
+    stopTimer(); ST.pt.min = +b.dataset.m; save();
+    v.querySelectorAll('#ptMins [data-m]').forEach(x => x.classList.toggle('on', x === b));
+    $('#tt').textContent = fmtSec(ST.pt.min * 60); $('#tt').classList.remove('low');
+    $('#tb').style.width = '100%'; $('#tb').classList.remove('low');
+    $('#thint').textContent = '실제 발표 시간은 안내문 기준으로 고르세요';
+  });
+  $('#ptGo').onclick = () => {
+    startTimer((ST.pt.min || 5) * 60, Date.now(),
+      () => { $('#thint').textContent = '⏰ 시간 종료 — 마무리 한 문장까지 들어갔나요?'; fxSafe(F => F.punch($('#tt'))); },
+      { run: '발표 중 — 소리 내어', low: '1분 남음 — 성장 목표·마무리로', lowAt: 60 });
+  };
+  $('#ptStop').onclick = () => { stopTimer(); $('#thint').textContent = '멈췄습니다 — ▶ 시작을 누르면 처음부터'; };
+}
+function selectText(node) {
+  try { const r = document.createRange(); r.selectNodeContents(node); const s = getSelection(); s.removeAllRanges(); s.addRange(r); } catch (e) {}
 }
 
 /* ══════════════ 아래 안내 — 공식 주소 (L10 이 KAI.links 에 채움) ══════════════ */
