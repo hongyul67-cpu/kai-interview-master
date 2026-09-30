@@ -238,6 +238,22 @@ function renderLearn(v) {
   });
 }
 
+/* ══════════════ 그림·사진·영상 (data/fig1~3.js · data/media.js) ══════════════
+   KAI.media['L2-7'] = { fig, photos:[{src,alt,cap,credit,license,url}], videos:[{title,url,by,note}] } — 키 = 단원-절번호(1부터) */
+function mediaOf(uid, i) { const M = KAI.media || {}; return M[`${uid}-${i + 1}`] || {}; }
+function photosHtml(list) {
+  if (!(list || []).length) return '';
+  return `<div class="photos">${list.map(p => `<figure class="photo">
+    <a href="${esc(p.url || p.src)}" target="_blank" rel="noopener"><img src="${esc(p.src)}" alt="${esc(p.alt || p.cap || '')}" loading="lazy"></a>
+    <figcaption>${txt(p.cap || '')}<small>📷 ${esc(p.credit || '')}${p.license ? ` · ${esc(p.license)}` : ''}</small></figcaption></figure>`).join('')}</div>`;
+}
+function videosHtml(list) {
+  if (!(list || []).length) return '';
+  return `<div class="videos">${list.map(vd => `<a class="video" href="${esc(vd.url)}" target="_blank" rel="noopener">
+    <b>▶ ${esc(vd.title)}</b><span>${esc(vd.by || '')}${vd.note ? ` — ${esc(vd.note)}` : ''}</span></a>`).join('')}
+    <div class="muted" style="font-size:12px">🔗 외부 영상입니다. 올린 곳에서 지우면 열리지 않을 수 있습니다.</div></div>`;
+}
+
 /* ══════════════ 배우기 — 단원 화면 ══════════════ */
 function renderUnit(v, id) {
   const u = learnById(id);
@@ -273,11 +289,13 @@ function renderUnit(v, id) {
   }
 
   secs.forEach((s, i) => {
+    const m = mediaOf(u.id, i), fig = s.fig || m.fig || '';
     v.appendChild(el(`<div class="card sec" id="sec-${i}">
       <h3><span class="num">${i + 1}</span> ${txt(s.h)} ${s.basis === '실무' ? '<span class="pill real">교재 밖 실무 지식</span>' : ''}</h3>
       ${s.body ? `<div class="body">${s.body}</div>` : ''}
       ${(s.points || []).length ? `<ul class="pts">${s.points.map(p => `<li>${txt(p)}</li>`).join('')}</ul>` : ''}
-      ${s.fig ? `<div class="fig">${s.fig}</div>` : ''}
+      ${fig ? `<div class="fig">${fig}${m.cap && !s.fig ? `<div class="figtxt">${txt(m.cap)}</div>` : ''}<div class="figcap">✏️ 직접 그린 개념도 — 교재 내용을 바탕으로 새로 그렸습니다(비율·치수는 개념용)</div></div>` : ''}
+      ${photosHtml(m.photos)}${videosHtml(m.videos)}
     </div>`));
   });
 
