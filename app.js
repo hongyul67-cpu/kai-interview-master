@@ -246,6 +246,12 @@ function renderLearn(v) {
 /* ══════════════ 그림·사진·영상 (data/fig1~3.js · data/media.js) ══════════════
    KAI.media['L2-7'] = { fig, photos:[{src,alt,cap,credit,license,url}], videos:[{title,url,by,note}] } — 키 = 단원-절번호(1부터) */
 function mediaOf(uid, i) { const M = KAI.media || {}; return M[`${uid}-${i + 1}`] || {}; }
+/* 그림 모음 2 (figs.js · links/fig.js 규격) — 옛 그림이 없는 절에만. cards = ['L3-1'] */
+function newFigs(uid, i) {
+  if (!window.FIG || !window.FIGS) return '';
+  const key = `${uid}-${i + 1}`, ks = Object.keys(FIGS).filter(k => (FIGS[k].cards || []).indexOf(key) >= 0);
+  return !ks.length ? '' : (ks.length > 1 ? FIG.gallery(ks) : FIG.figure(ks[0]));
+}
 function photosHtml(list) {
   if (!(list || []).length) return '';
   return `<div class="photos">${list.map(p => `<figure class="photo">
@@ -294,12 +300,13 @@ function renderUnit(v, id) {
   }
 
   secs.forEach((s, i) => {
-    const m = mediaOf(u.id, i), fig = s.fig || m.fig || '';
+    const m = mediaOf(u.id, i), fig = s.fig || m.fig || '', nf = fig ? '' : newFigs(u.id, i);
     v.appendChild(el(`<div class="card sec" id="sec-${i}">
       <h3><span class="num">${i + 1}</span> ${txt(s.h)} ${s.basis === '실무' ? '<span class="pill real">교재 밖 실무 지식</span>' : ''}</h3>
       ${s.body ? `<div class="body">${s.body}</div>` : ''}
       ${(s.points || []).length ? `<ul class="pts">${s.points.map(p => `<li>${txt(p)}</li>`).join('')}</ul>` : ''}
       ${fig ? `<div class="fig">${fig}${m.cap && !s.fig ? `<div class="figtxt">${txt(m.cap)}</div>` : ''}<div class="figcap">✏️ 직접 그린 개념도 — 교재 내용을 바탕으로 새로 그렸습니다(비율·치수는 개념용)</div></div>` : ''}
+      ${nf ? `<div class="fig fig2">${nf}<div class="figcap">✏️ 직접 그린 개념도 — 교재 내용을 바탕으로 새로 그렸습니다(비율·치수는 개념용)</div></div>` : ''}
       ${photosHtml(m.photos)}${videosHtml(m.videos)}
     </div>`));
   });

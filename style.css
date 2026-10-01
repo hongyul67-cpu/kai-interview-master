@@ -310,3 +310,6 @@ details.q.imp{border-left:4px solid #f0b400}
   body.v-sum .sum h2{break-after:avoid}
   body.v-sum .sum h2.pb{break-before:page;margin-top:0}
 }
+/* 그림 모음 2 (figs.js · links/fig.js) — 2026-10-01 */
+.sec .fig2 figure.fig{margin:0 auto}
+.sec .fig2 .fig-gallery{text-align:left}
